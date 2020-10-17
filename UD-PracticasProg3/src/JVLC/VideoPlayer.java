@@ -18,7 +18,7 @@ import uk.co.caprica.vlcj.player.embedded.windows.Win32FullScreenStrategy;
 /** Ventana principal de reproductor de v�deo
  * Utiliza la librer�a VLCj que debe estar instalada y configurada
  *     (http://www.capricasoftware.co.uk/projects/vlcj/index.html)
- * @author Andoni Egu�luz Mor�n
+ * @author Andoni Egu�luz Mor�n 
  * Facultad de Ingenier�a - Universidad de Deusto
  */
 public class VideoPlayer extends JFrame {
