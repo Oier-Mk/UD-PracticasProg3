@@ -1,7 +1,18 @@
 package JVLC;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.logging.FileHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+import java.util.stream.IntStream;
+
 import javax.swing.ListModel;
 import javax.swing.event.ListDataEvent;
 import javax.swing.event.ListDataListener;
@@ -14,9 +25,44 @@ import javax.swing.event.ListDataListener;
  * de los elementos en la lista, borrar elementos y a�adir nuevos.
  */
 public class ListaDeReproduccion implements ListModel<String> {
-	ArrayList<File> ficherosLista;     // ficheros de la lista de reproducci�n
+	public static ArrayList<File> ficherosLista;     // ficheros de la lista de reproducci�n
 	int ficheroEnCurso = -1;           // Fichero seleccionado (-1 si no hay ninguno seleccionado)
-	
+	private static Logger logger = Logger.getLogger( ListaDeReproduccion.class.getName() ); 
+	private static final boolean ANYADIR_A_FIC_LOG = false; // poner true para no sobreescribir
+	static {
+		try {
+			logger.addHandler( new FileHandler(
+					ListaDeReproduccion.class.getName()+".log.xml", ANYADIR_A_FIC_LOG ));
+		} catch (SecurityException | IOException e) {
+			logger.log( Level.SEVERE, "Error en creación fichero log" );
+		}
+	} 
+
+	public ListaDeReproduccion() {
+		ficherosLista = new ArrayList<>();
+	}
+
+	public void intercambia(int pos1,int pos2) {
+		ficherosLista.add(pos1, ficherosLista.get(pos2));
+		ficherosLista.add(pos2, ficherosLista.get(pos1));
+	}
+
+	public int intercambia() {
+		return ficherosLista.size();
+	}
+
+	public void add(File f) {
+		ficherosLista.add(f);
+	}
+
+	public void removeFic(int posi) {
+		ficherosLista.remove(posi);
+	}
+
+	public void clear() {
+		ficherosLista.clear();
+	}
+
 	/** Devuelve uno de los ficheros de la lista
 	 * @param posi	Posici�n del fichero en la lista (de 0 a size()-1)
 	 * @return	Devuelve el fichero en esa posici�n
@@ -40,16 +86,35 @@ public class ListaDeReproduccion implements ListModel<String> {
 	 * @return	N�mero de ficheros que han sido a�adidos a la lista
 	 */
 	public int add(String carpetaFicheros, String filtroFicheros) {
-		// TODO: Codificar este m�todo de acuerdo a la pr�ctica (pasos 3 y sucesivos)
-		filtroFicheros = filtroFicheros.replaceAll( "\\.", "\\\\." );  // Pone el s�mbolo de la expresi�n regular \. donde figure un .
-		return 0;
+		logger.log(Level.INFO, "Añadiendo ficheros con filtro " + filtroFicheros);
+		filtroFicheros = filtroFicheros.replaceAll("\\.", "\\\\."); 
+		filtroFicheros = filtroFicheros.replaceAll("\\*", "\\.*");
+		logger.log(Level.INFO, "Añadiendo ficheros con filtro " + filtroFicheros);
+
+		Pattern p = Pattern.compile(filtroFicheros);
+
+		File fInic = new File(carpetaFicheros);
+		int cont = 0;
+		if (fInic.isDirectory()) {
+			for (File f : fInic.listFiles()) {
+				cont++;
+				logger.log(Level.FINE, "Procesando fichero: " + f.getName());
+				
+				Matcher m = p.matcher(f.getName());
+
+				boolean filtro = m.matches();
+
+				if (filtro) {
+					logger.log(Level.INFO, "Fichero añadido: " + f.getName() + " cumple con el filtro");
+					add(f);
+				} else {
+					logger.log(Level.SEVERE, "Fichero: " + f.getName() + " NO cumple con el filtro");
+				}
+			}
+		}
+		return cont;
 	}
-	
-	
-	//
-	// M�todos de selecci�n
-	//
-	
+
 	/** Seleciona el primer fichero de la lista de reproducci�n
 	 * @return	true si la selecci�n es correcta, false si hay error y no se puede seleccionar
 	 */
@@ -61,7 +126,7 @@ public class ListaDeReproduccion implements ListModel<String> {
 		}
 		return true;
 	}
-	
+
 	/** Seleciona el �ltimo fichero de la lista de reproducci�n
 	 * @return	true si la selecci�n es correcta, false si hay error y no se puede seleccionar
 	 */
@@ -106,7 +171,7 @@ public class ListaDeReproduccion implements ListModel<String> {
 	//
 	// M�todos de DefaultListModel
 	//
-	
+
 	@Override
 	public int getSize() {
 		return ficherosLista.size();
@@ -117,8 +182,8 @@ public class ListaDeReproduccion implements ListModel<String> {
 		return ficherosLista.get(index).getName();
 	}
 
-		// Escuchadores de datos de la lista
-		ArrayList<ListDataListener> misEscuchadores = new ArrayList<>();
+	// Escuchadores de datos de la lista
+	ArrayList<ListDataListener> misEscuchadores = new ArrayList<>();
 	@Override
 	public void addListDataListener(ListDataListener l) {
 		misEscuchadores.add( l );
@@ -128,7 +193,7 @@ public class ListaDeReproduccion implements ListModel<String> {
 	public void removeListDataListener(ListDataListener l) {
 		misEscuchadores.remove( l );
 	}
-	
+
 	// Llamar a este m�todo cuando se a�ada un elemento a la lista
 	// (Utilizado para avisar a los escuchadores de cambio de datos de la lista)
 	private void avisarAnyadido( int posi ) {
@@ -136,4 +201,14 @@ public class ListaDeReproduccion implements ListModel<String> {
 			ldl.intervalAdded( new ListDataEvent(this, ListDataEvent.INTERVAL_ADDED, posi, posi ));
 		}
 	}
+	
+	/** Selecciona un fichero aleatorio de la lista de reproducción.
+	 * @return true si la selección es correcta, false si hay error y no se puede seleccionar
+	 */
+	public void irARandom() {
+		Random r = new Random();
+		int index = r.nextInt(this.getSize());
+		ficheroEnCurso = (index);
+	}
+
 }
