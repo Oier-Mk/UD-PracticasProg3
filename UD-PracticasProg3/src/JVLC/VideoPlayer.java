@@ -6,8 +6,11 @@ import java.awt.event.*;
 import javax.swing.*;
 
 import java.io.File;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
 
-import uk.co.caprica.vlcj.binding.LibVlc;
 import uk.co.caprica.vlcj.component.EmbeddedMediaPlayerComponent;
 import uk.co.caprica.vlcj.discovery.NativeDiscovery;
 import uk.co.caprica.vlcj.player.MediaPlayer;
@@ -23,7 +26,7 @@ import uk.co.caprica.vlcj.player.embedded.windows.Win32FullScreenStrategy;
  */
 public class VideoPlayer extends JFrame {
 	private static final long serialVersionUID = 1L;
-	
+
 	// Varible de ventana principal de la clase
 	private static VideoPlayer miVentana;
 
@@ -40,7 +43,7 @@ public class VideoPlayer extends JFrame {
 	public VideoPlayer() {
 		// Creaci�n de datos asociados a la ventana (lista de reproducci�n)
 		listaRepVideos = new ListaDeReproduccion();
-		
+
 		// Creaci�n de componentes/contenedores de swing
 		lCanciones = new JList<String>( listaRepVideos );
 		pbVideo = new JProgressBar( 0, 10000 );
@@ -52,15 +55,15 @@ public class VideoPlayer extends JFrame {
 		JButton bPausaPlay = new JButton( new ImageIcon( VideoPlayer.class.getResource("img/Button Play Pause.png")) );
 		JButton bAdelante = new JButton( new ImageIcon( VideoPlayer.class.getResource("img/Button Fast Forward.png")) );
 		JButton bMaximizar = new JButton( new ImageIcon( VideoPlayer.class.getResource("img/Button Maximize.png")) );
-		
+
 		// Componente de VCLj
-        mediaPlayerComponent = new EmbeddedMediaPlayerComponent() {
+		mediaPlayerComponent = new EmbeddedMediaPlayerComponent() {
 			private static final long serialVersionUID = 1L;
 			@Override
-            protected FullScreenStrategy onGetFullScreenStrategy() {
-                return new Win32FullScreenStrategy(VideoPlayer.this);
-            }
-        };
+			protected FullScreenStrategy onGetFullScreenStrategy() {
+				return new Win32FullScreenStrategy(VideoPlayer.this);
+			}
+		};
 
 		// Configuraci�n de componentes/contenedores
 		setTitle("Video Player - Deusto Ingenier�a");
@@ -69,7 +72,7 @@ public class VideoPlayer extends JFrame {
 		setSize( 800, 600 );
 		lCanciones.setPreferredSize( new Dimension( 200,  500 ) );
 		pBotonera.setLayout( new FlowLayout( FlowLayout.LEFT ));
-		
+
 		// Enlace de componentes y contenedores
 		pBotonera.add( bAnyadir );
 		pBotonera.add( bAtras );
@@ -82,7 +85,7 @@ public class VideoPlayer extends JFrame {
 		getContentPane().add( pBotonera, BorderLayout.NORTH );
 		getContentPane().add( pbVideo, BorderLayout.SOUTH );
 		getContentPane().add( new JScrollPane( lCanciones ), BorderLayout.WEST );
-		
+
 		// Escuchadores
 		bAnyadir.addActionListener( new ActionListener() {
 			@Override
@@ -90,8 +93,6 @@ public class VideoPlayer extends JFrame {
 				File fPath = pedirCarpeta();
 				if (fPath==null) return;
 				path = fPath.getAbsolutePath();
-				// TODO: pedir ficheros por ventana de entrada (JOptionPane)
-				// ficheros = ...
 				listaRepVideos.add( path, ficheros );
 				lCanciones.repaint();
 			}
@@ -117,9 +118,9 @@ public class VideoPlayer extends JFrame {
 			public void actionPerformed(ActionEvent e) {
 				if (mediaPlayerComponent.getMediaPlayer().isPlayable()) {
 					if (mediaPlayerComponent.getMediaPlayer().isPlaying()) {
-						// TODO: hacer pausa
+						mediaPlayerComponent.getMediaPlayer().stop();
 					} else {
-						// TODO: hacer play
+						mediaPlayerComponent.getMediaPlayer().play();
 					}
 				} else {
 					lanzaVideo();
@@ -130,7 +131,7 @@ public class VideoPlayer extends JFrame {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				if (mediaPlayerComponent.getMediaPlayer().isFullScreen())
-			        mediaPlayerComponent.getMediaPlayer().setFullScreen(false);
+					mediaPlayerComponent.getMediaPlayer().setFullScreen(false);
 				else
 					mediaPlayerComponent.getMediaPlayer().setFullScreen(true);
 			}
@@ -143,32 +144,53 @@ public class VideoPlayer extends JFrame {
 			}
 		});
 		mediaPlayerComponent.getMediaPlayer().addMediaPlayerEventListener( 
-			new MediaPlayerEventAdapter() {
-				@Override
-				public void finished(MediaPlayer mediaPlayer) {
-					listaRepVideos.irASiguiente();
-					lanzaVideo();
-				}
-				@Override
-				public void error(MediaPlayer mediaPlayer) {
-					listaRepVideos.irASiguiente();
-					lanzaVideo();
-					lCanciones.repaint();
-				}
-			    @Override
-			    public void timeChanged(MediaPlayer mediaPlayer, long newTime) {
-					pbVideo.setValue( (int) (10000.0 * 
-							mediaPlayerComponent.getMediaPlayer().getTime() /
-							mediaPlayerComponent.getMediaPlayer().getLength()) );
-					pbVideo.repaint();
-			    }
+				new MediaPlayerEventAdapter() {
+					@Override
+					public void finished(MediaPlayer mediaPlayer) {
+						listaRepVideos.irASiguiente();
+						lanzaVideo();
+					}
+					@Override
+					public void error(MediaPlayer mediaPlayer) {
+						listaRepVideos.irASiguiente();
+						lanzaVideo();
+						lCanciones.repaint();
+					}
+					@Override
+					public void timeChanged(MediaPlayer mediaPlayer, long newTime) {
+						pbVideo.setValue( (int) (10000.0 * 
+								mediaPlayerComponent.getMediaPlayer().getTime() /
+								mediaPlayerComponent.getMediaPlayer().getLength()) );
+						pbVideo.repaint();
+					}
+				});
+//		 Para acabar, vamos a sacar la información de fecha del fichero que estamos reproduciendo para sacarlo en
+//		 la línea superior de mensajes (lMensaje). Define un formateador de fecha partiendo de la clase DateFormat, que
+//		 utilice el locale por defecto y un formato corto, para en el método lanzaVideo, convertir la fecha long del fichero
+//		 que se va a reproducir (busca el método de la clase File que devuelve la fecha de última modificación), en la fecha
+//		 legible, y ponla en la etiqueta superior. Deberás ver la fecha de modificación de cada fichero según se empieza a
+//		 reproducir. 
+		addWindowListener(new WindowAdapter() {
+			public void windowActivated(WindowEvent e) {
+				long lFecha = System.currentTimeMillis();
+				SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");		
+				Date dAhora = new Date(lFecha);
+				lMensaje.setText(format.format(dAhora));
+			}
+		});
+		cbAleatorio.addActionListener(new ActionListener() {
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				if(cbAleatorio.isSelected()) listaRepVideos.irARandom();
+			}
 		});
 	}
 
 	//
 	// M�todos sobre el player de v�deo
 	//
-	
+
 	// Para la reproducci�n del v�deo en curso
 	private void paraVideo() {
 		if (mediaPlayerComponent.getMediaPlayer()!=null)
@@ -178,25 +200,31 @@ public class VideoPlayer extends JFrame {
 	// Empieza a reproducir el v�deo en curso de la lista de reproducci�n
 	private void lanzaVideo() {
 		if (mediaPlayerComponent.getMediaPlayer()!=null &&
-			listaRepVideos.getFicSeleccionado()!=-1) {
+				listaRepVideos.getFicSeleccionado()!=-1) {
 			File ficVideo = listaRepVideos.getFic(listaRepVideos.getFicSeleccionado());
 			mediaPlayerComponent.getMediaPlayer().playMedia( 
-				ficVideo.getAbsolutePath() );
+					ficVideo.getAbsolutePath() );
 			lCanciones.setSelectedIndex( listaRepVideos.getFicSeleccionado() );
 		} else {
 			lCanciones.setSelectedIndices( new int[] {} );
 		}
 	}
-	
+
 	// Pide interactivamente una carpeta para coger v�deos
 	// (null si no se selecciona)
 	private static File pedirCarpeta() {
-		// TODO: Pedir la carpeta usando JFileChooser
-		return null;
+		JFileChooser jfc =new JFileChooser();
+		jfc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+		int devuelto = jfc.showOpenDialog(null);
+		File seleccionado = null;
+		if (devuelto == JFileChooser.APPROVE_OPTION) {
+			seleccionado = jfc.getSelectedFile();
+		}
+		return seleccionado;
 	}
 
-		private static String ficheros;
-		private static String path;
+	private static String ficheros;
+	private static String path;
 	/** Ejecuta una ventana de VideoPlayer.
 	 * El path de VLC debe estar en la variable de entorno "vlc".
 	 * Comprobar que la versi�n de 32/64 bits de Java y de VLC es compatible.
@@ -205,42 +233,42 @@ public class VideoPlayer extends JFrame {
 	 */
 	public static void main(String[] args) {
 		// Para probar carga interactiva descomentar o comentar la l�nea siguiente:
-		args = new String[] { "*Pentatonix*.mp4", "test/res/" };
+//		args = new String[] { "*Pentatonix*.mp4", "test/res/" };
 		if (args.length < 2) {
 			// No hay argumentos: selecci�n manual
 			File fPath = pedirCarpeta();
 			if (fPath==null) return;
 			path = fPath.getAbsolutePath();
-			// TODO : Petici�n manual de ficheros con comodines (showInputDialog)
-			// ficheros = ???
+            ficheros = JOptionPane.showInputDialog(null, "Elige el patrón que desesas añadir.", "Selección de carpeta",JOptionPane.INFORMATION_MESSAGE);
+
 		} else {
 			ficheros = args[0];
 			path = args[1];
 		}
-		
+
 		// Inicializar VLC.
 		// Probar con el buscador nativo...
 		boolean found = new NativeDiscovery().discover();
-    	// System.out.println( LibVlc.INSTANCE.libvlc_get_version() );  // Visualiza versi�n de VLC encontrada
-    	// Si no se encuentra probar otras opciones:
-    	if (!found) {
+		// System.out.println( LibVlc.INSTANCE.libvlc_get_version() );  // Visualiza versi�n de VLC encontrada
+		// Si no se encuentra probar otras opciones:
+		if (!found) {
 			// Buscar vlc como variable de entorno
 			String vlcPath = System.getenv().get( "vlc" );
 			if (vlcPath==null) {  // Poner VLC a mano
-	        	System.setProperty("jna.library.path", "c:\\Program Files\\videolan\\VLC");
+				System.setProperty("jna.library.path", "c:\\Program Files\\videolan\\VLC");
 			} else {  // Poner VLC desde la variable de entorno
 				System.setProperty( "jna.library.path", vlcPath );
 			}
 		}
-    	
-    	// Lanzar ventana
+
+		// Lanzar ventana
 		SwingUtilities.invokeLater( new Runnable() {
 			@Override
 			public void run() {
 				miVentana = new VideoPlayer();
-				// Descomentar estas dos l�neas para ver un v�deo de ejemplo
-				// miVentana.listaRepVideos.ficherosLista = new ArrayList<File>();
-				// miVentana.listaRepVideos.ficherosLista.add( new File("test/res/[Official Video] Daft Punk - Pentatonix.mp4") );				
+//				 Descomentar estas dos l�neas para ver un v�deo de ejemplo
+//				miVentana.listaRepVideos.ficherosLista = new ArrayList<File>();
+//				miVentana.listaRepVideos.ficherosLista.add( new File("/src/JVLC/netflixLogo.mp4") );				
 				miVentana.setVisible( true );
 				miVentana.listaRepVideos.add( path, ficheros );
 				miVentana.listaRepVideos.irAPrimero();
@@ -248,5 +276,5 @@ public class VideoPlayer extends JFrame {
 			}
 		});
 	}
-	
+
 }
